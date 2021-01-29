@@ -27,6 +27,7 @@ with open('sets.json', 'r') as file:
 	HOUR_START = sets['notifications']['hour_start']
 	DAYS_STOP = sets['notifications']['days_stop']
 	HOUR_STOP = sets['notifications']['hour_stop']
+	DELAY = sets['delay']
 
 
 # Global variables
@@ -182,43 +183,41 @@ async def handler_text(msg: aiogram.types.Message):
 
 # Background process
 async def background_process():
-	while True:
-		notify_start = db['system'].find_one({'name': 'notify_start'}, {'_id': False, 'cont': True})['cont']
-		notify_stop = db['system'].find_one({'name': 'notify_stop'}, {'_id': False, 'cont': True})['cont']
+	notify_start = db['system'].find_one({'name': 'notify_start'}, {'_id': False, 'cont': True})['cont']
+	notify_stop = db['system'].find_one({'name': 'notify_stop'}, {'_id': False, 'cont': True})['cont']
 
-		if get_wday() in DAYS_START and get_day() != notify_start and get_hour() >= HOUR_START:
-			for user in db['users'].find({'login': {'$exists': True}}, {'_id': False, 'id': True}):
-				await send(
-					user['id'],
-					'Хочешь поработать с партнёром в ближайшие дни?',
-					[[
-						{'name': 'Да', 'type': 'callback', 'data': 'y'},
-						{'name': 'Нет', 'type': 'callback', 'data': 'n'},
-					]],
-					True,
-				)
+	if get_wday() in DAYS_START and get_day() != notify_start and get_hour() >= HOUR_START:
+		for user in db['users'].find({'login': {'$exists': True}}, {'_id': False, 'id': True}):
+			await send(
+				user['id'],
+				'Хочешь поработать с партнёром в ближайшие дни?',
+				[[
+					{'name': 'Да', 'type': 'callback', 'data': 'y'},
+					{'name': 'Нет', 'type': 'callback', 'data': 'n'},
+				]],
+				True,
+			)
 
-			db['system'].update_one({'name': 'notify_start'}, {'$set': {'cont': get_day()}})
+		db['system'].update_one({'name': 'notify_start'}, {'$set': {'cont': get_day()}})
 
-		if get_wday() in DAYS_STOP and get_hour() >= HOUR_STOP and get_day() != notify_stop and notify_start:
-			# TODO: only registrated
-			for user in db['users'].find({'login': {'$exists': True}}, {'_id': False, 'id': True}):
-				await send(
-					user['id'],
-					'Как поработали?',
-					[[
-						{'name': '★', 'type': 'callback', 'data': 'r1'},
-						{'name': '★★', 'type': 'callback', 'data': 'r2'},
-						{'name': '★★★', 'type': 'callback', 'data': 'r3'},
-						{'name': '★★★★', 'type': 'callback', 'data': 'r4'},
-						{'name': '★★★★★', 'type': 'callback', 'data': 'r5'},
-					]],
-					True,
-				)
+	if get_wday() in DAYS_STOP and get_hour() >= HOUR_STOP and get_day() != notify_stop and notify_start:
+		# TODO: only registrated
+		for user in db['users'].find({'login': {'$exists': True}}, {'_id': False, 'id': True}):
+			await send(
+				user['id'],
+				'Как поработали?',
+				[[
+					{'name': '★', 'type': 'callback', 'data': 'r1'},
+					{'name': '★★', 'type': 'callback', 'data': 'r2'},
+					{'name': '★★★', 'type': 'callback', 'data': 'r3'},
+					{'name': '★★★★', 'type': 'callback', 'data': 'r4'},
+					{'name': '★★★★★', 'type': 'callback', 'data': 'r5'},
+				]],
+				True,
+			)
 
-			db['system'].update_one({'name': 'notify_stop'}, {'$set': {'cont': get_day()}})
+		db['system'].update_one({'name': 'notify_stop'}, {'$set': {'cont': get_day()}})
 
-		time.sleep(100)
 
 if __name__ == '__main__':
 	# First setup
@@ -237,7 +236,12 @@ if __name__ == '__main__':
 		})
 
 	# Background process
-	# asyncio.run(background_process())
+	def repeat(coro, loop):
+		asyncio.ensure_future(coro(), loop=loop)
+		loop.call_later(DELAY, repeat, coro, loop)
+
+	loop = asyncio.get_event_loop()
+	loop.call_later(0, repeat, background_process, loop)
 
 	# Telegram process
-	executor.start_polling(dp)
+	executor.start_polling(dp, skip_updates=True, loop=loop)
