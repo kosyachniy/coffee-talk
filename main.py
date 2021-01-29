@@ -132,15 +132,47 @@ def auth(msg):
 
 # Telegram handlers
 ## Callback handlers
-### Entry point
+# {"id": "586534174085442072", "from": {"id": 136563129, "is_bot": false, "first_name": "Alexey", "last_name": "Poloz", "username": "kosyachniy", "language_code": "ru"}, "message": {"message_id": 41, "from": {"id": 1540757891, "is_bot": true, "first_name": "Coffee Talk", "username": "coffee_talk_bot"}, "chat": {"id": 136563129, "first_name": "Alexey", "last_name": "Poloz", "username": "kosyachniy", "type": "private"}, "date": 1611942216, "text": "Хочешь поработать с партнёром в ближайшие дни?", "reply_markup": {"inline_keyboard": [[{"text": "Да", "callback_data": "y"}, {"text": "Нет", "callback_data": "n"}]]}}, "chat_instance": "-2955349629926715065", "data": "y"}
+
+### Yes
+@dp.callback_query_handler(lambda call: call.data == 'y')
+async def handler_yes(call):
+	await bot.answer_callback_query(call.id)
+	await send(call.from_user.id, 'Вы будете соединены со следующим присоединившимся участником!')
+	await bot.delete_message(call.from_user.id, call.message.message_id)
+
+### No
+@dp.callback_query_handler(lambda call: call.data == 'n')
+async def handler_no(call):
+	await bot.answer_callback_query(call.id)
+	await send(call.from_user.id, 'Хорошего дня ;)')
+	await bot.delete_message(call.from_user.id, call.message.message_id)
+
+### No
+@dp.callback_query_handler(lambda call: call.data[0] == 'r')
+async def handler_rating(call):
+	await bot.answer_callback_query(call.id)
+	await send(call.from_user.id, 'Спасибо за оценку!\nЕсли у Вас остались какие-либо замечания или предложения, просто отправьте их в этот чат.')
+	await bot.delete_message(call.from_user.id, call.message.message_id)
+
+## Entry point
 @dp.message_handler(commands=['start', 'help'])
 async def handler_start(msg: aiogram.types.Message):
 	if not auth(msg):
 		await send(msg.from_user.id, 'Необходимо указать никнейм в Telegram!')
 
-	await send(msg.from_user.id, 'Привет! Это бот программы Шагов.\n\nДавай быть продуктивными вместе!')
+	# await send(msg.from_user.id, 'Привет! Это бот программы Шагов.\n\nДавай быть продуктивными вместе!')
+	await send(
+		136563129,
+		'Хочешь поработать с партнёром в ближайшие дни?',
+		[[
+			{'name': 'Да', 'type': 'callback', 'data': 'y'},
+			{'name': 'Нет', 'type': 'callback', 'data': 'n'},
+		]],
+		True,
+	)
 
-### Text
+## Main handler
 @dp.message_handler()
 async def handler_text(msg: aiogram.types.Message):
 	if not auth(msg):
@@ -148,7 +180,7 @@ async def handler_text(msg: aiogram.types.Message):
 
 	await send(msg.from_user.id, msg.text)
 
-## Background process
+# Background process
 async def background_process():
 	while True:
 		notify_start = db['system'].find_one({'name': 'notify_start'}, {'_id': False, 'cont': True})['cont']
@@ -160,8 +192,8 @@ async def background_process():
 					user['id'],
 					'Хочешь поработать с партнёром в ближайшие дни?',
 					[[
-						{'name': 'Да', 'type': 'callback', 'data': 'y{}'.format(user['id'])},
-						{'name': 'Нет', 'type': 'callback', 'data': 'n{}'.format(user['id'])},
+						{'name': 'Да', 'type': 'callback', 'data': 'y'},
+						{'name': 'Нет', 'type': 'callback', 'data': 'n'},
 					]],
 					True,
 				)
@@ -171,7 +203,18 @@ async def background_process():
 		if get_wday() in DAYS_STOP and get_hour() >= HOUR_STOP and get_day() != notify_stop and notify_start:
 			# TODO: only registrated
 			for user in db['users'].find({'login': {'$exists': True}}, {'_id': False, 'id': True}):
-				await send(user['id'], 'Как поработали?')
+				await send(
+					user['id'],
+					'Как поработали?',
+					[[
+						{'name': '★', 'type': 'callback', 'data': 'r1'},
+						{'name': '★★', 'type': 'callback', 'data': 'r2'},
+						{'name': '★★★', 'type': 'callback', 'data': 'r3'},
+						{'name': '★★★★', 'type': 'callback', 'data': 'r4'},
+						{'name': '★★★★★', 'type': 'callback', 'data': 'r5'},
+					]],
+					True,
+				)
 
 			db['system'].update_one({'name': 'notify_stop'}, {'$set': {'cont': get_day()}})
 
@@ -194,7 +237,7 @@ if __name__ == '__main__':
 		})
 
 	# Background process
-	asyncio.run(background_process())
+	# asyncio.run(background_process())
 
 	# Telegram process
 	executor.start_polling(dp)
