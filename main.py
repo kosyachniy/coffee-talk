@@ -139,24 +139,51 @@ def auth(msg):
 async def handler_yes(call):
 	await bot.answer_callback_query(call.id)
 
-	try:
-		await bot.delete_message(call.from_user.id, call.message.message_id)
-	except Exception as e:
-		print('ERROR `delete_message` in `handler_yes`', e)
+	if call.message.text[:8] != 'Напарник':
+		try:
+			await bot.delete_message(call.from_user.id, call.message.message_id)
+		except Exception as e:
+			print('ERROR `delete_message` in `handler_yes`', e)
 
-	user = db['users'].find_one({'id': {'$ne': call.from_user.id}, 'waiting': {'$exists': True}}, {'_id': False, 'id': True, 'login': True})
+	user = db['users'].find_one({
+		'id': {'$ne': call.from_user.id},
+		'waiting': {'$exists': True},
+		'match': {'$ne': call.from_user.id},
+	}, {'_id': False, 'id': True, 'login': True})
+
 	if user:
-		await send(call.from_user.id, 'Напарник найден!\nСвяжись с ним: @{}'.format(user['login']))
-		await send(user['id'], 'Напарник найден!\nСвяжись с ним: @{}'.format(call.from_user.username))
+		await send(
+			call.from_user.id,
+			'Напарник найден!\nСвяжись с ним: @{}'.format(user['login']),
+			[[
+				{'name': 'Нужен ещё один напарник?', 'type': 'callback', 'data': 'y'},
+			]],
+			True,
+		)
+		db['users'].update_one({'id': call.from_user.id}, {
+			'$push': {'match': user['id']},
+			'$unset': {'waiting': ''},
+		})
 
-		db['users'].update_one({'id': user['id']}, {'$unset': {'waiting': ''}})
+		await send(
+			user['id'],
+			'Напарник найден!\nСвяжись с ним: @{}'.format(call.from_user.username),
+			[[
+				{'name': 'Нужен ещё один напарник?', 'type': 'callback', 'data': 'y'},
+			]],
+			True,
+		)
+		db['users'].update_one({'id': user['id']}, {
+			'$push': {'match': call.from_user.id},
+			'$unset': {'waiting': ''},
+		})
 
 	else:
 		await send(
 			call.from_user.id,
 			'Вы будете соединены со следующим присоединившимся участником!',
 			[[
-				{'name': 'Я передумал ;(', 'type': 'callback', 'data': 'n'},
+				{'name': 'Я передумал 😕', 'type': 'callback', 'data': 'n'},
 			]],
 			True,
 		)
@@ -238,8 +265,7 @@ async def background_process():
 		db['system'].update_one({'name': 'notify_start'}, {'$set': {'cont': get_day()}})
 
 	if get_wday() in DAYS_STOP and get_hour() >= HOUR_STOP and get_day() != notify_stop and notify_start:
-		# TODO: only registrated
-		for user in db['users'].find({'login': {'$exists': True}}, {'_id': False, 'id': True}):
+		for user in db['users'].find({'match': {'$exists': True}}, {'_id': False, 'id': True}):
 			await send(
 				user['id'],
 				'Как поработали?',
@@ -252,6 +278,8 @@ async def background_process():
 				]],
 				True,
 			)
+
+			db['users'].update_one({'id': user['id']}, {'$unset': {'match': ''}})
 
 		db['system'].update_one({'name': 'notify_stop'}, {'$set': {'cont': get_day()}})
 
