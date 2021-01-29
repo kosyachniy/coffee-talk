@@ -5,7 +5,7 @@ import time
 import asyncio
 
 ## External
-from aiogram import Bot, types
+import aiogram
 from aiogram.dispatcher import Dispatcher
 from aiogram.utils import executor
 
@@ -30,11 +30,59 @@ with open('sets.json', 'r') as file:
 
 
 # Global variables
-bot = Bot(token=TOKEN)
+bot = aiogram.Bot(token=TOKEN)
 dp = Dispatcher(bot)
 
 
 # Funcs
+## Make keyboard
+def keyboard(rows, inline=False):
+	if rows == []:
+		if inline:
+			return aiogram.types.InlineKeyboardMarkup()
+		else:
+			return aiogram.types.ReplyKeyboardRemove()
+
+	if rows in (None, [], [[]]):
+		return rows
+
+	if inline:
+		buttons = aiogram.types.InlineKeyboardMarkup()
+	else:
+		buttons = aiogram.types.ReplyKeyboardMarkup(resize_keyboard=True)
+
+	if type(rows[0]) not in (list, tuple):
+		rows = [[button] for button in rows]
+
+	for cols in rows:
+		if inline:
+			buttons.add(*[aiogram.types.InlineKeyboardButton(col['name'], **({'url': col['data']} if col['type'] == 'link' else {'callback_data': col['data']})) for col in cols])
+			# buttons.add(*[aiogram.types.InlineKeyboardButton(col['name'], callback_data=col['data']) for col in cols])
+		else:
+			buttons.add(*[aiogram.types.KeyboardButton(col) for col in cols])
+
+	return buttons
+
+## Send message
+async def send(user, text='', buttons=None, inline=False, image=None, preview=False):
+	if not image:
+		return await bot.send_message(
+			user,
+			text,
+			reply_markup=keyboard(buttons, inline),
+			parse_mode='Markdown',
+			disable_web_page_preview=not preview,
+		)
+
+	else:
+		return await bot.send_photo(
+			user,
+			image,
+			text,
+			reply_markup=keyboard(buttons, inline),
+			parse_mode='Markdown',
+		)
+
 ## Get current week day
 def get_wday():
 	return time.gmtime(time.time() + TIMEZONE * 3600).tm_wday
@@ -86,19 +134,19 @@ def auth(msg):
 ## Callback handlers
 ### Entry point
 @dp.message_handler(commands=['start', 'help'])
-async def handler_start(msg: types.Message):
+async def handler_start(msg: aiogram.types.Message):
 	if not auth(msg):
-		await bot.send_message(msg.from_user.id, 'Необходимо указать никнейм в Telegram!')
+		await send(msg.from_user.id, 'Необходимо указать никнейм в Telegram!')
 
-	await bot.send_message(msg.from_user.id, 'Привет! Это бот программы Шагов.\n\nДавай быть продуктивными вместе!')
+	await send(msg.from_user.id, 'Привет! Это бот программы Шагов.\n\nДавай быть продуктивными вместе!')
 
 ### Text
 @dp.message_handler()
-async def handler_text(msg: types.Message):
+async def handler_text(msg: aiogram.types.Message):
 	if not auth(msg):
-		await bot.send_message(msg.from_user.id, 'Необходимо указать никнейм в Telegram!')
+		await send(msg.from_user.id, 'Необходимо указать никнейм в Telegram!')
 
-	await bot.send_message(msg.from_user.id, msg.text)
+	await send(msg.from_user.id, msg.text)
 
 ## Background process
 async def background_process():
@@ -108,14 +156,22 @@ async def background_process():
 
 		if get_wday() in DAYS_START and get_day() != notify_start and get_hour() >= HOUR_START:
 			for user in db['users'].find({'login': {'$exists': True}}, {'_id': False, 'id': True}):
-				await bot.send_message(user['id'], 'Хочешь поработать с партнёром в ближайшие дни?')
+				await send(
+					user['id'],
+					'Хочешь поработать с партнёром в ближайшие дни?',
+					[[
+						{'name': 'Да', 'type': 'callback', 'data': 'y{}'.format(user['id'])},
+						{'name': 'Нет', 'type': 'callback', 'data': 'n{}'.format(user['id'])},
+					]],
+					True,
+				)
 
 			db['system'].update_one({'name': 'notify_start'}, {'$set': {'cont': get_day()}})
 
 		if get_wday() in DAYS_STOP and get_hour() >= HOUR_STOP and get_day() != notify_stop and notify_start:
 			# TODO: only registrated
 			for user in db['users'].find({'login': {'$exists': True}}, {'_id': False, 'id': True}):
-				await bot.send_message(user['id'], 'Как поработали?')
+				await send(user['id'], 'Как поработали?')
 
 			db['system'].update_one({'name': 'notify_stop'}, {'$set': {'cont': get_day()}})
 
