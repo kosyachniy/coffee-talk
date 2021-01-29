@@ -2,7 +2,7 @@
 ## System
 import json
 import time
-from multiprocessing import Process
+import asyncio
 
 ## External
 from aiogram import Bot, types
@@ -49,18 +49,18 @@ def get_hour():
 
 ## Auth
 def auth(msg):
-	user = db['users'].find_one({'social_id': msg.from_user.id}, {'_id': False, 'login': True})
+	user = db['users'].find_one({'id': msg.from_user.id}, {'_id': False, 'login': True})
 
 	# Old user
 
 	if user:
-		if not user['login']:
+		if 'login' not in user:
 			login = msg.from_user.username if msg.from_user.username else ''
 			if login:
-				db['users'].update_one({'social_id': msg.from_user.id}, {'$set': {'login': login}})
+				db['users'].update_one({'id': msg.from_user.id}, {'$set': {'login': login}})
 				return True
 
-		return bool(user['login'])
+		return 'login' in user
 
 	# New user
 
@@ -72,12 +72,14 @@ def auth(msg):
 		'id': msg.from_user.id,
 		'name': name,
 		'surname': surname,
-		'login': login,
 	}
+
+	if login:
+		user['login'] = login
 
 	db['users'].insert_one(user)
 
-	return bool(user['login'])
+	return 'login' in user
 
 
 # Telegram handlers
@@ -85,25 +87,36 @@ def auth(msg):
 ### Entry point
 @dp.message_handler(commands=['start', 'help'])
 async def handler_start(msg: types.Message):
+	if not auth(msg):
+		await bot.send_message(msg.from_user.id, 'Необходимо указать никнейм в Telegram!')
+
 	await bot.send_message(msg.from_user.id, 'Привет! Это бот программы Шагов.\n\nДавай быть продуктивными вместе!')
 
 ### Text
 @dp.message_handler()
 async def handler_text(msg: types.Message):
+	if not auth(msg):
+		await bot.send_message(msg.from_user.id, 'Необходимо указать никнейм в Telegram!')
+
 	await bot.send_message(msg.from_user.id, msg.text)
 
 ## Background process
-def background_process():
+async def background_process():
 	while True:
 		notify_start = db['system'].find_one({'name': 'notify_start'}, {'_id': False, 'cont': True})['cont']
 		notify_stop = db['system'].find_one({'name': 'notify_stop'}, {'_id': False, 'cont': True})['cont']
 
 		if get_wday() in DAYS_START and get_day() != notify_start and get_hour() >= HOUR_START:
-			print('OK start')
+			for user in db['users'].find({'login': {'$exists': True}}, {'_id': False, 'id': True}):
+				await bot.send_message(user['id'], 'Хочешь поработать с партнёром в ближайшие дни?')
+
 			db['system'].update_one({'name': 'notify_start'}, {'$set': {'cont': get_day()}})
 
 		if get_wday() in DAYS_STOP and get_hour() >= HOUR_STOP and get_day() != notify_stop and notify_start:
-			print('OK stop')
+			# TODO: only registrated
+			for user in db['users'].find({'login': {'$exists': True}}, {'_id': False, 'id': True}):
+				await bot.send_message(user['id'], 'Как поработали?')
+
 			db['system'].update_one({'name': 'notify_stop'}, {'$set': {'cont': get_day()}})
 
 		time.sleep(100)
@@ -125,8 +138,7 @@ if __name__ == '__main__':
 		})
 
 	# Background process
-	p = Process(target=background_process)
-	p.start()
+	asyncio.run(background_process())
 
 	# Telegram process
 	executor.start_polling(dp)
