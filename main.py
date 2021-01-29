@@ -103,11 +103,10 @@ def auth(msg):
 	# Old user
 
 	if user:
-		if 'login' not in user:
-			login = msg.from_user.username if msg.from_user.username else ''
-			if login:
-				db['users'].update_one({'id': msg.from_user.id}, {'$set': {'login': login}})
-				return True
+		login = msg.from_user.username if msg.from_user.username else ''
+		if login and (('login' in user and user['login'] != login) or 'login' not in user):
+			db['users'].update_one({'id': msg.from_user.id}, {'$set': {'login': login}})
+			return True
 
 		return 'login' in user
 
@@ -139,8 +138,23 @@ def auth(msg):
 @dp.callback_query_handler(lambda call: call.data == 'y')
 async def handler_yes(call):
 	await bot.answer_callback_query(call.id)
-	await send(call.from_user.id, 'Вы будете соединены со следующим присоединившимся участником!')
-	await bot.delete_message(call.from_user.id, call.message.message_id)
+
+	try:
+		await bot.delete_message(call.from_user.id, call.message.message_id)
+	except Exception as e:
+		print('ERROR `delete_message` in `handler_yes`', e)
+
+	user = db['users'].find_one({'waiting': {'$exists': True}}, {'_id': False, 'id': True, 'login': True})
+	if user:
+		await send(call.from_user.id, 'Напарник найден!\nСвяжись с ним: @{}'.format(user['login']))
+		await send(user['id'], 'Напарник найден!\nСвяжись с ним: @{}'.format(call.from_user.username))
+
+		db['users'].update_one({'id': user['id']}, {'$unset': {'waiting': ''}})
+
+	else:
+		await send(call.from_user.id, 'Вы будете соединены со следующим присоединившимся участником!')
+
+		db['users'].update_one({'id': call.from_user.id}, {'$set': {'waiting': True}})
 
 ### No
 @dp.callback_query_handler(lambda call: call.data == 'n')
@@ -164,7 +178,7 @@ async def handler_start(msg: aiogram.types.Message):
 
 	# await send(msg.from_user.id, 'Привет! Это бот программы Шагов.\n\nДавай быть продуктивными вместе!')
 	await send(
-		136563129,
+		msg.from_user.id,
 		'Хочешь поработать с партнёром в ближайшие дни?',
 		[[
 			{'name': 'Да', 'type': 'callback', 'data': 'y'},
