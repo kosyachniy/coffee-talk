@@ -144,7 +144,7 @@ async def handler_yes(call):
 	except Exception as e:
 		print('ERROR `delete_message` in `handler_yes`', e)
 
-	user = db['users'].find_one({'waiting': {'$exists': True}}, {'_id': False, 'id': True, 'login': True})
+	user = db['users'].find_one({'id': {'$ne': call.from_user.id}, 'waiting': {'$exists': True}}, {'_id': False, 'id': True, 'login': True})
 	if user:
 		await send(call.from_user.id, 'Напарник найден!\nСвяжись с ним: @{}'.format(user['login']))
 		await send(user['id'], 'Напарник найден!\nСвяжись с ним: @{}'.format(call.from_user.username))
@@ -152,7 +152,14 @@ async def handler_yes(call):
 		db['users'].update_one({'id': user['id']}, {'$unset': {'waiting': ''}})
 
 	else:
-		await send(call.from_user.id, 'Вы будете соединены со следующим присоединившимся участником!')
+		await send(
+			call.from_user.id,
+			'Вы будете соединены со следующим присоединившимся участником!',
+			[[
+				{'name': 'Я передумал ;(', 'type': 'callback', 'data': 'n'},
+			]],
+			True,
+		)
 
 		db['users'].update_one({'id': call.from_user.id}, {'$set': {'waiting': True}})
 
@@ -160,8 +167,24 @@ async def handler_yes(call):
 @dp.callback_query_handler(lambda call: call.data == 'n')
 async def handler_no(call):
 	await bot.answer_callback_query(call.id)
-	await send(call.from_user.id, 'Хорошего дня ;)')
-	await bot.delete_message(call.from_user.id, call.message.message_id)
+
+	try:
+		await bot.delete_message(call.from_user.id, call.message.message_id)
+	except Exception as e:
+		print('ERROR `delete_message` in `handler_no`', e)
+
+	await send(
+		call.from_user.id,
+		'Хорошего дня ;)',
+		[[
+			{'name': 'Я передумал!', 'type': 'callback', 'data': 'y'},
+		]],
+		True,
+	)
+
+	user = db['users'].find_one({'id': call.from_user.id, 'waiting': {'$exists': True}}, {'_id': True})
+	if user:
+		db['users'].update_one({'id': call.from_user.id}, {'$unset': {'waiting': ''}})
 
 ### No
 @dp.callback_query_handler(lambda call: call.data[0] == 'r')
