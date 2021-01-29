@@ -1,0 +1,22 @@
+# Cache
+##  MacOS
+.DS_Store
+
+## Python
+__pycache__/
+*.pyc
+
+## Editors
+.idea/
+.vscode/
+
+##
+*.session
+*.session-journal
+
+# Keys & sets
+keys.*py
+keys*.*json
+
+# Environments
+env/
