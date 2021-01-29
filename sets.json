@@ -3,5 +3,16 @@
 	"host": "127.0.0.1",
 	"mongo": {
 		"db": "coffeetalk"
+	},
+	"notifications": {
+		"days_start": [
+			0,
+			3
+		],
+		"hour_start": 11,
+		"days_stop": [
+			2
+		],
+		"hour_stop": 18
 	}
 }

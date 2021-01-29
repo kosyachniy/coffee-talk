@@ -23,6 +23,10 @@ with open('keys.json', 'r') as file:
 with open('sets.json', 'r') as file:
 	sets = json.loads(file.read())
 	TIMEZONE = sets['timezone']
+	DAYS_START = sets['notifications']['days_start']
+	HOUR_START = sets['notifications']['hour_start']
+	DAYS_STOP = sets['notifications']['days_stop']
+	HOUR_STOP = sets['notifications']['hour_stop']
 
 
 # Global variables
@@ -31,9 +35,49 @@ dp = Dispatcher(bot)
 
 
 # Funcs
+## Get current week day
+def get_wday():
+	return time.gmtime(time.time() + TIMEZONE * 3600).tm_wday
+
 ## Get current day
 def get_day():
 	return int((time.time() + TIMEZONE * 3600) // 86400)
+
+## Get current hour
+def get_hour():
+	return time.gmtime(time.time() + TIMEZONE * 3600).tm_hour
+
+## Auth
+def auth(msg):
+	user = db['users'].find_one({'social_id': msg.from_user.id}, {'_id': False, 'login': True})
+
+	# Old user
+
+	if user:
+		if not user['login']:
+			login = msg.from_user.username if msg.from_user.username else ''
+			if login:
+				db['users'].update_one({'social_id': msg.from_user.id}, {'$set': {'login': login}})
+				return True
+
+		return bool(user['login'])
+
+	# New user
+
+	name = msg.from_user.first_name if msg.from_user.first_name else ''
+	surname = msg.from_user.last_name if msg.from_user.last_name else ''
+	login = msg.from_user.username if msg.from_user.username else ''
+
+	user = {
+		'id': msg.from_user.id,
+		'name': name,
+		'surname': surname,
+		'login': login,
+	}
+
+	db['users'].insert_one(user)
+
+	return bool(user['login'])
 
 
 # Telegram handlers
@@ -54,11 +98,11 @@ def background_process():
 		notify_start = db['system'].find_one({'name': 'notify_start'}, {'_id': False, 'cont': True})['cont']
 		notify_stop = db['system'].find_one({'name': 'notify_stop'}, {'_id': False, 'cont': True})['cont']
 
-		if time.gmtime().tm_wday in (0, 3) and get_day() != notify_start:
+		if get_wday() in DAYS_START and get_day() != notify_start and get_hour() >= HOUR_START:
 			print('OK start')
 			db['system'].update_one({'name': 'notify_start'}, {'$set': {'cont': get_day()}})
 
-		if time.gmtime().tm_wday in (2,) and get_day() != notify_stop and notify_start:
+		if get_wday() in DAYS_STOP and get_hour() >= HOUR_STOP and get_day() != notify_stop and notify_start:
 			print('OK stop')
 			db['system'].update_one({'name': 'notify_stop'}, {'$set': {'cont': get_day()}})
 
