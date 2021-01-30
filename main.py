@@ -1,6 +1,3 @@
-# TODO: история пар + вывод статы за месяц
-# TODO: сохранение фидбека
-# TODO: сохранение рейтинга
 # TODO: запрос указания логина
 # TODO: инструкция
 
@@ -257,7 +254,7 @@ async def handler_start(msg: aiogram.types.Message):
 	await send(
 		msg.from_user.id,
 		'Привет! Это бот программы Шагов.\n\nДавай быть продуктивными вместе!',
-		['Статистика', 'Отзывы'] if msg.from_user.id in ADMINS else None,
+		['Статистика'] if msg.from_user.id in ADMINS else None,
 	)
 
 	# await send(
@@ -291,6 +288,7 @@ async def handler_text(msg: aiogram.types.Message):
 		'Средняя оценка: {} ({} за месяц)\nВсего метчей: {} ({} за месяц)'.format(
 			rating_all, rating_month, match_all, match_month,
 		),
+		['Статистика'] if msg.from_user.id in ADMINS else None,
 	)
 
 ## Main handler
@@ -309,6 +307,9 @@ async def handler_text(msg: aiogram.types.Message):
 		'text': msg.text,
 		'time': time.time(),
 	})
+
+	for admin in ADMINS:
+		await send(admin, 'Сообщение от @{}\n\n{}'.format(msg.from_user.username, msg.text))
 
 # Background process
 async def background_process():
