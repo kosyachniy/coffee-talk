@@ -1,4 +1,5 @@
-# TODO: запрос указания логина
+# TODO: ссылка с кодом для входа
+# TODO: отключить Markdown (для фидбека) + убрать login.replace()
 
 # Libraries
 ## System
@@ -146,7 +147,7 @@ def auth(msg):
 async def handler_yes(call):
 	await bot.answer_callback_query(call.id)
 
-	if call.message.text[:8] != 'Напарник':
+	if call.message.text[:8] != 'Партнёр':
 		try:
 			await bot.delete_message(call.from_user.id, call.message.message_id)
 		except Exception as e:
@@ -161,9 +162,9 @@ async def handler_yes(call):
 	if user:
 		await send(
 			call.from_user.id,
-			'Напарник найден!\nСвяжись с ним: @{}'.format(user['login']),
+			'Ура, партнёр найден!\nСкорее свяжись с ним: @{}'.format(user['login'].replace('_', '\\_')),
 			[[
-				{'name': 'Нужен ещё один напарник?', 'type': 'callback', 'data': 'y'},
+				{'name': 'Нужен ещё один партнёр?', 'type': 'callback', 'data': 'y'},
 			]],
 			True,
 		)
@@ -174,9 +175,9 @@ async def handler_yes(call):
 
 		await send(
 			user['id'],
-			'Напарник найден!\nСвяжись с ним: @{}'.format(call.from_user.username),
+			'Ура, партнёр найден!\nСкорее свяжись с ним: @{}'.format(call.from_user.username.replace('_', '\\_')),
 			[[
-				{'name': 'Нужен ещё один напарник?', 'type': 'callback', 'data': 'y'},
+				{'name': 'Нужен ещё один партнёр?', 'type': 'callback', 'data': 'y'},
 			]],
 			True,
 		)
@@ -198,7 +199,7 @@ async def handler_yes(call):
 			call.from_user.id,
 			'Вы будете соединены со следующим присоединившимся участником!',
 			[[
-				{'name': 'Я передумал 😕', 'type': 'callback', 'data': 'n'},
+				{'name': 'Не получается.. Отменить ☔️', 'type': 'callback', 'data': 'n'},
 			]],
 			True,
 		)
@@ -217,9 +218,9 @@ async def handler_no(call):
 
 	await send(
 		call.from_user.id,
-		'Хорошего дня ;)',
+		'Отменено! 😉\nХорошего дня и до скорой связи!',
 		[[
-			{'name': 'Я передумал!', 'type': 'callback', 'data': 'y'},
+			{'name': 'Я снова могу! Найти партнёра 😀', 'type': 'callback', 'data': 'y'},
 		]],
 		True,
 	)
@@ -232,7 +233,7 @@ async def handler_no(call):
 @dp.callback_query_handler(lambda call: call.data[0] == 'r')
 async def handler_rating(call):
 	await bot.answer_callback_query(call.id)
-	await send(call.from_user.id, 'Спасибо за оценку!\nЕсли у Вас остались какие-либо замечания или предложения, просто отправьте их в этот чат.')
+	await send(call.from_user.id, 'Спасибо за оценку!\nЕсли у тебя есть обратная связь, замечания или предложения, просто напиши их в этот чат.')
 
 	try:
 		await bot.delete_message(call.from_user.id, call.message.message_id)
@@ -251,6 +252,11 @@ async def handler_rating(call):
 @dp.callback_query_handler(lambda call: call.data[0] == 'u')
 async def handler_updated(call):
 	await bot.answer_callback_query(call.id)
+
+	try:
+		await bot.delete_message(call.from_user.id, call.message.message_id)
+	except Exception as e:
+		print('ERROR `delete_message` in `handler_updated`', e)
 
 	if not auth(call):
 		await send(
@@ -271,31 +277,43 @@ async def handler_updated(call):
 		True,
 	)
 
-## Entry point
-@dp.message_handler(commands=['start', 'help'])
-async def handler_start(msg: aiogram.types.Message):
+### Start
+@dp.callback_query_handler(lambda call: call.data[0] == 's')
+async def handler_start(call):
+	await bot.answer_callback_query(call.id)
+
 	await send(
-		msg.from_user.id,
-		'Ура! 🎗\n\nТеперь ты с нами!\nКраткая инструкция:\n\n1) Два раза в неделю я буду спрашивать хочешь ли ты поработать с кем-то в ближайшие 3 дня. Если да, то я буду присылать пару сразу, как только она найдётся:)\nНапиши партнеру в Telegram, чтобы договориться о звонке и выбрать время.\n\n2)Я собираю пары по активности: чем быстрее ответ боту - тем активнее даётся партнёр.\n\n3) Если ты хочешь делать работу чаще 1 раза в 3-4 дня, нажимай кнопку «Нужен ещё один напарник?»\n\n4)Если партнёр не отвечает, нажимай кнопку «Нужен ещё один напарник?» и я подберу тебе нового\n\nПлодотворных работ! 🌊',
-		['Статистика'] if msg.from_user.id in ADMINS else None,
+		call.from_user.id,
+		'Ура! 🎗\n\nТеперь ты с нами!\nКраткая инструкция:\n\n1) По понедельникам и четвергам я буду спрашивать, хочешь ли ты поработать с кем-то в ближайшие 3 дня. Если да - я буду присылать тебе пару сразу, как только она найдётся :)\n\nЧтобы договориться о звонке и выбрать время, напиши партнеру в Telegram.\n\n2) Я собираю пары по активности: чем быстрее твой ответ боту - тем активнее даётся партнёр.\n\n3) Если ты хочешь делать работу чаще 1 раза в 3-4 дня, нажимай кнопку «Нужен ещё один партнёр?»\n\n4) Если партнёр не отвечает, нажимай кнопку «Нужен ещё один партнёр?» и я подберу тебе нового\n\nПлодотворных работ!\n🌊',
+		['Статистика'] if call.from_user.id in ADMINS else None,
 	)
 
-	if not auth(msg):
+	if not auth(call):
 		await send(
-			msg.from_user.id,
-			'Вам необходимо указать никнейм в Telegram, чтобы напарник смог связаться с Вами!',
+			call.from_user.id,
+			'Вам необходимо указать никнейм в Telegram, чтобы партнёр смог связаться с Вами!',
 			[{'name': 'Указал', 'type': 'callback', 'data': 'u'}],
 			True,
 		)
 		return
 
 	await send(
-		msg.from_user.id,
-		'Хочешь поработать с партнёром в ближайшие дни?',
+		call.from_user.id,
+		'Итак, ты хочешь поработать с партнёром в ближайшие дни?',
 		[[
 			{'name': 'Да', 'type': 'callback', 'data': 'y'},
 			{'name': 'Нет', 'type': 'callback', 'data': 'n'},
 		]],
+		True,
+	)
+
+## Entry point
+@dp.message_handler(commands=['start', 'help'])
+async def handler_start(msg: aiogram.types.Message):
+	await send(
+		msg.from_user.id,
+		'Привет! 🦚\n\nЯ бот поиска партнёра для совместной работы по Анкете Кристины Макаровой.\n\nДва раза в неделю я буду предлагать тебе поработать с одним из участников Программы Шагов.\n\nНажми «Начать» и прочитай короткую инструкцию.\n🌁',
+		[{'name': 'Отлично, начинаем!', 'type': 'callback', 'data': 's'}],
 		True,
 	)
 
@@ -335,7 +353,7 @@ async def handler_text(msg: aiogram.types.Message):
 		)
 		return
 
-	await send(msg.from_user.id, 'Ваш отзыв сохранён!')
+	await send(msg.from_user.id, 'Передал обратную связь!')
 
 	# Save feedback
 
@@ -346,7 +364,10 @@ async def handler_text(msg: aiogram.types.Message):
 	})
 
 	for admin in ADMINS:
-		await send(admin, 'Сообщение от @{}\n\n{}'.format(msg.from_user.username, msg.text))
+		try:
+			await send(admin, 'Сообщение от @{}\n\n{}'.format(msg.from_user.username.replace('_', '\\_'), msg.text))
+		except Exception as e:
+			print('ERROR `send` in `handler_text`', e)
 
 # Background process
 async def background_process():
@@ -357,7 +378,7 @@ async def background_process():
 		for user in db['users'].find({'login': {'$exists': True}}, {'_id': False, 'id': True}):
 			await send(
 				user['id'],
-				'Хочешь поработать с партнёром в ближайшие дни?',
+				'Итак, ты хочешь поработать с партнёром в ближайшие дни?',
 				[[
 					{'name': 'Да', 'type': 'callback', 'data': 'y'},
 					{'name': 'Нет', 'type': 'callback', 'data': 'n'},
@@ -367,18 +388,17 @@ async def background_process():
 
 		db['system'].update_one({'name': 'notify_start'}, {'$set': {'cont': get_day()}})
 
-	if get_wday() in DAYS_STOP and get_hour() >= HOUR_STOP and get_day() != notify_stop and notify_start:
+	if get_wday() in DAYS_STOP and get_hour() >= HOUR_STOP and get_day() != notify_stop:
 		for user in db['users'].find({'match': {'$exists': True}}, {'_id': False, 'id': True}):
 			await send(
 				user['id'],
 				'Как поработали?',
-				[[
-					{'name': '★', 'type': 'callback', 'data': 'r1'},
-					{'name': '★★', 'type': 'callback', 'data': 'r2'},
-					{'name': '★★★', 'type': 'callback', 'data': 'r3'},
-					{'name': '★★★★', 'type': 'callback', 'data': 'r4'},
-					{'name': '★★★★★', 'type': 'callback', 'data': 'r5'},
-				]],
+				[
+					[{'name': 'Отлично! 🔥', 'type': 'callback', 'data': 'r5'}],
+					[{'name': 'Хорошо 🥰', 'type': 'callback', 'data': 'r4'}],
+					[{'name': 'Нормально 😐', 'type': 'callback', 'data': 'r3'}],
+					[{'name': 'Ну так 🥴', 'type': 'callback', 'data': 'r2'}],
+				],
 				True,
 			)
 
