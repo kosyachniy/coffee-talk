@@ -1,3 +1,9 @@
+# TODO: история пар + вывод статы за месяц
+# TODO: сохранение фидбека
+# TODO: сохранение рейтинга
+# TODO: запрос указания логина
+# TODO: инструкция
+
 # Libraries
 ## System
 import json
@@ -178,6 +184,14 @@ async def handler_yes(call):
 			'$unset': {'waiting': ''},
 		})
 
+		# Save match
+
+		db['match'].insert_one({
+			'user1': user['id'],
+			'user2': call.from_user.id,
+			'time': time.time(),
+		})
+
 	else:
 		await send(
 			call.from_user.id,
@@ -218,7 +232,19 @@ async def handler_no(call):
 async def handler_rating(call):
 	await bot.answer_callback_query(call.id)
 	await send(call.from_user.id, 'Спасибо за оценку!\nЕсли у Вас остались какие-либо замечания или предложения, просто отправьте их в этот чат.')
-	await bot.delete_message(call.from_user.id, call.message.message_id)
+
+	try:
+		await bot.delete_message(call.from_user.id, call.message.message_id)
+	except Exception as e:
+		print('ERROR `delete_message` in `handler_rating`', e)
+
+	# Save rating
+
+	db['rating'].insert_one({
+		'user': call.from_user.id,
+		'score': int(call.data[1]),
+		'time': time.time(),
+	})
 
 ## Entry point
 @dp.message_handler(commands=['start', 'help'])
@@ -243,7 +269,15 @@ async def handler_text(msg: aiogram.types.Message):
 	if not auth(msg):
 		await send(msg.from_user.id, 'Необходимо указать никнейм в Telegram!')
 
-	await send(msg.from_user.id, msg.text)
+	await send(msg.from_user.id, 'Ваш отзыв сохранён!')
+
+	# Save feedback
+
+	db['feedback'].insert_one({
+		'user': msg.from_user.id,
+		'text': msg.text,
+		'time': time.time(),
+	})
 
 # Background process
 async def background_process():
