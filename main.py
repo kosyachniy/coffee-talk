@@ -34,6 +34,7 @@ with open('sets.json', 'r') as file:
 	DAYS_STOP = sets['notifications']['days_stop']
 	HOUR_STOP = sets['notifications']['hour_stop']
 	DELAY = sets['delay']
+	ADMINS = sets['admins']
 
 
 # Global variables
@@ -251,16 +252,45 @@ async def handler_rating(call):
 async def handler_start(msg: aiogram.types.Message):
 	if not auth(msg):
 		await send(msg.from_user.id, 'Необходимо указать никнейм в Telegram!')
+		return
 
-	# await send(msg.from_user.id, 'Привет! Это бот программы Шагов.\n\nДавай быть продуктивными вместе!')
 	await send(
 		msg.from_user.id,
-		'Хочешь поработать с партнёром в ближайшие дни?',
-		[[
-			{'name': 'Да', 'type': 'callback', 'data': 'y'},
-			{'name': 'Нет', 'type': 'callback', 'data': 'n'},
-		]],
-		True,
+		'Привет! Это бот программы Шагов.\n\nДавай быть продуктивными вместе!',
+		['Статистика', 'Отзывы'] if msg.from_user.id in ADMINS else None,
+	)
+
+	# await send(
+	# 	msg.from_user.id,
+	# 	'Хочешь поработать с партнёром в ближайшие дни?',
+	# 	[[
+	# 		{'name': 'Да', 'type': 'callback', 'data': 'y'},
+	# 		{'name': 'Нет', 'type': 'callback', 'data': 'n'},
+	# 	]],
+	# 	True,
+	# )
+
+## Buttons
+@dp.message_handler(lambda msg: msg.text == 'Статистика')
+async def handler_text(msg: aiogram.types.Message):
+	if msg.from_user.id not in ADMINS:
+		await send(msg.from_user.id, 'У Вас нет доступа!')
+		return
+
+	rating_all = [i['score'] for i in db['rating'].find({}, {'_id': False, 'score': True})]
+	rating_all = round(sum(rating_all) / len(rating_all), 2) if len(rating_all) else 0
+
+	rating_month = [i['score'] for i in db['rating'].find({'time': {'$gte': time.time() - 2592000}}, {'_id': False, 'score': True})]
+	rating_month = round(sum(rating_month) / len(rating_month), 2) if len(rating_month) else 0
+
+	match_all = db['match'].find({}, {'_id': False, 'score': True}).count()
+	match_month = db['match'].find({'time': {'$gte': time.time() - 2592000}}, {'_id': False, 'score': True}).count()
+
+	await send(
+		msg.from_user.id,
+		'Средняя оценка: {} ({} за месяц)\nВсего метчей: {} ({} за месяц)'.format(
+			rating_all, rating_month, match_all, match_month,
+		),
 	)
 
 ## Main handler
@@ -268,6 +298,7 @@ async def handler_start(msg: aiogram.types.Message):
 async def handler_text(msg: aiogram.types.Message):
 	if not auth(msg):
 		await send(msg.from_user.id, 'Необходимо указать никнейм в Telegram!')
+		return
 
 	await send(msg.from_user.id, 'Ваш отзыв сохранён!')
 
