@@ -1,5 +1,7 @@
 # TODO: ссылка с кодом для входа
 # TODO: отключить Markdown (для фидбека) + убрать login.replace()
+# TODO: статистика
+# TODO: проверка вхождения в чат обращающегося
 
 # Libraries
 ## System
@@ -32,6 +34,7 @@ with open('sets.json', 'r') as file:
 	HOUR_STOP = sets['notifications']['hour_stop']
 	DELAY = sets['delay']
 	ADMINS = sets['admins']
+	CHAT = sets['chat']
 
 
 # Global variables
@@ -40,6 +43,16 @@ dp = Dispatcher(bot)
 
 
 # Funcs
+## Check entry
+async def check_entry(chat, user):
+	try:
+		user_type = await bot.get_chat_member(chat, user)
+		if user_type.status in ('administrator', 'member'):
+			return True
+		return False
+	except:
+		return False
+
 ## Make keyboard
 def keyboard(rows, inline=False):
 	if rows == []:
@@ -147,6 +160,10 @@ def auth(msg):
 async def handler_yes(call):
 	await bot.answer_callback_query(call.id)
 
+	if not await check_entry(CHAT, call.from_user.id):
+		await send(call.from_user.id, 'Вы не состоите в чате!')
+		return
+
 	if call.message.text[:8] != 'Партнёр':
 		try:
 			await bot.delete_message(call.from_user.id, call.message.message_id)
@@ -211,6 +228,10 @@ async def handler_yes(call):
 async def handler_no(call):
 	await bot.answer_callback_query(call.id)
 
+	if not await check_entry(CHAT, call.from_user.id):
+		await send(call.from_user.id, 'Вы не состоите в чате!')
+		return
+
 	try:
 		await bot.delete_message(call.from_user.id, call.message.message_id)
 	except Exception as e:
@@ -233,6 +254,11 @@ async def handler_no(call):
 @dp.callback_query_handler(lambda call: call.data[0] == 'r')
 async def handler_rating(call):
 	await bot.answer_callback_query(call.id)
+
+	if not await check_entry(CHAT, call.from_user.id):
+		await send(call.from_user.id, 'Вы не состоите в чате!')
+		return
+
 	await send(call.from_user.id, 'Спасибо за оценку!\nЕсли у тебя есть обратная связь, замечания или предложения, просто напиши их в этот чат.')
 
 	try:
@@ -252,6 +278,10 @@ async def handler_rating(call):
 @dp.callback_query_handler(lambda call: call.data[0] == 'u')
 async def handler_updated(call):
 	await bot.answer_callback_query(call.id)
+
+	if not await check_entry(CHAT, call.from_user.id):
+		await send(call.from_user.id, 'Вы не состоите в чате!')
+		return
 
 	try:
 		await bot.delete_message(call.from_user.id, call.message.message_id)
@@ -281,6 +311,10 @@ async def handler_updated(call):
 @dp.callback_query_handler(lambda call: call.data[0] == 's')
 async def handler_start(call):
 	await bot.answer_callback_query(call.id)
+
+	if not await check_entry(CHAT, call.from_user.id):
+		await send(call.from_user.id, 'Вы не состоите в чате!')
+		return
 
 	await send(
 		call.from_user.id,
@@ -344,6 +378,10 @@ async def handler_text(msg: aiogram.types.Message):
 ## Main handler
 @dp.message_handler()
 async def handler_text(msg: aiogram.types.Message):
+	if not await check_entry(CHAT, call.from_user.id):
+		await send(call.from_user.id, 'Вы не состоите в чате!')
+		return
+
 	if not auth(msg):
 		await send(
 			msg.from_user.id,
