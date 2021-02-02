@@ -354,14 +354,17 @@ async def handler_text(msg: aiogram.types.Message):
 		await send(msg.from_user.id, 'У Вас нет доступа!')
 		return
 
+	timestamp = time.time()
+	timestamp_month = timestamp - 2592000
+
 	rating_all = [i['score'] for i in db['rating'].find({}, {'_id': False, 'score': True})]
 	rating_all = round(sum(rating_all) / len(rating_all), 2) if len(rating_all) else 0
 
-	rating_month = [i['score'] for i in db['rating'].find({'time': {'$gte': time.time() - 2592000}}, {'_id': False, 'score': True})]
+	rating_month = [i['score'] for i in db['rating'].find({'time': {'$gte': timestamp_month}}, {'_id': False, 'score': True})]
 	rating_month = round(sum(rating_month) / len(rating_month), 2) if len(rating_month) else 0
 
 	match_all = db['match'].find({}, {'_id': False, 'score': True}).count()
-	match_month = db['match'].find({'time': {'$gte': time.time() - 2592000}}, {'_id': False, 'score': True}).count()
+	match_month = db['match'].find({'time': {'$gte': timestamp_month}}, {'_id': False, 'score': True}).count()
 
 	await send(
 		msg.from_user.id,
@@ -370,6 +373,63 @@ async def handler_text(msg: aiogram.types.Message):
 		),
 		['Статистика'] if msg.from_user.id in ADMINS else None,
 	)
+
+	# Advanced
+
+	text = 'Активность за последний месяц:\n\n'
+
+	db_filter = {'_id': False, 'id': True, 'login': True}
+	for user in db['users'].find({'login': {'$exists': True}}, db_filter):
+		if not await check_entry(CHAT, user['id']):
+			continue
+
+		text += '@{} '.format(user['login'])
+		partners = set()
+		matches = 0
+
+		try:
+			rate = db['rating'].find({'user': user['id']}, {'_id': False}).sort('time', -1)[0]['score']
+		except:
+			pass
+		else:
+			text += '| {}★ '.format(rate)
+
+		for match in db['match'].find({
+			'time': {'$gte': timestamp_month},
+			'$or': [{'user1': user['id']}, {'user2': user['id']}],
+		}, {'_id': False}):
+			matches += 1
+			partner_id = (match['user1'], match['user2'])[match['user1'] == user['id']]
+			partner = db['users'].find_one({'id': partner_id}, {'_id': False, 'login': True})
+			partners.add(partner['login'])
+
+		def ends(cont):
+			if cont % 10 == 1 and cont % 100 != 11:
+				return ''
+
+			if cont % 10 in (2, 3, 4) and cont % 100 not in (12, 13, 14):
+				return 'а'
+
+			return 'ей'
+
+		text += '| {} метч{}'.format(matches, ends(matches))
+
+		if len(partners):
+			text += '\nПары: '
+
+			for partner in partners:
+				text += '@{} '.format(partner)
+
+		text += '\n\n'
+
+	try:
+		await send(
+			msg.from_user.id,
+			text.replace('_', '\\_'),
+			['Статистика'] if msg.from_user.id in ADMINS else None,
+		)
+	except Exception as e:
+		print('ERROR `send` in `handler_text`', e)
 
 ## Main handler
 @dp.message_handler()
