@@ -1,8 +1,3 @@
-# TODO: ссылка с кодом для входа
-# TODO: отключить Markdown (для фидбека) + убрать login.replace()
-# TODO: статистика
-# TODO: проверка вхождения в чат обращающегося
-
 # Libraries
 ## System
 import json
@@ -47,7 +42,8 @@ dp = Dispatcher(bot)
 async def check_entry(chat, user):
 	try:
 		user_type = await bot.get_chat_member(chat, user)
-		if user_type.status in ('administrator', 'member'):
+		print(user_type.status)
+		if user_type.status in ('creator', 'administrator', 'member'):
 			return True
 		return False
 	except:
