@@ -255,10 +255,6 @@ async def handler_no(call):
 async def handler_rating(call):
 	await bot.answer_callback_query(call.id)
 
-	if not await check_entry(CHAT, call.from_user.id):
-		await send(call.from_user.id, 'Вы не состоите в чате!')
-		return
-
 	await send(call.from_user.id, 'Спасибо за оценку!\nЕсли у тебя есть обратная связь, замечания или предложения, просто напиши их в этот чат.')
 
 	try:
@@ -378,7 +374,7 @@ async def handler_text(msg: aiogram.types.Message):
 ## Main handler
 @dp.message_handler()
 async def handler_text(msg: aiogram.types.Message):
-	if not await check_entry(CHAT, call.from_user.id):
+	if not await check_entry(CHAT, msg.from_user.id):
 		await send(call.from_user.id, 'Вы не состоите в чате!')
 		return
 
@@ -414,6 +410,9 @@ async def background_process():
 
 	if get_wday() in DAYS_START and get_day() != notify_start and get_hour() >= HOUR_START:
 		for user in db['users'].find({'login': {'$exists': True}}, {'_id': False, 'id': True}):
+			if not await check_entry(CHAT, user['id']):
+				continue
+
 			await send(
 				user['id'],
 				'Итак, ты хочешь поработать с партнёром в ближайшие дни?',
