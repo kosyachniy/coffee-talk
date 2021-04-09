@@ -35,6 +35,7 @@ with open('sets.json', 'r') as file:
 # Global variables
 bot = aiogram.Bot(token=TOKEN)
 dp = Dispatcher(bot)
+global_message = set()
 
 
 # Funcs
@@ -78,24 +79,27 @@ def keyboard(rows, inline=False):
 	return buttons
 
 ## Send message
-async def send(user, text='', buttons=None, inline=False, image=None, preview=False):
-	if not image:
-		return await bot.send_message(
-			user,
-			text,
-			reply_markup=keyboard(buttons, inline),
-			parse_mode='Markdown',
-			disable_web_page_preview=not preview,
-		)
+async def send(user, text='', buttons=None, inline=False, image=None, preview=False, parse=True):
+	try:
+		if not image:
+			return await bot.send_message(
+				user,
+				text,
+				reply_markup=keyboard(buttons, inline),
+				parse_mode='Markdown' if parse else None,
+				disable_web_page_preview=not preview,
+			)
 
-	else:
-		return await bot.send_photo(
-			user,
-			image,
-			text,
-			reply_markup=keyboard(buttons, inline),
-			parse_mode='Markdown',
-		)
+		else:
+			return await bot.send_photo(
+				user,
+				image,
+				text,
+				reply_markup=keyboard(buttons, inline),
+				parse_mode='Markdown' if parse else None,
+			)
+	except:
+		pass
 
 ## Get current week day
 def get_wday():
@@ -149,7 +153,7 @@ def auth(msg):
 
 # Telegram handlers
 ## Callback handlers
-# {"id": "586534174085442072", "from": {"id": 136563129, "is_bot": false, "first_name": "Alexey", "last_name": "Poloz", "username": "kosyachniy", "language_code": "ru"}, "message": {"message_id": 41, "from": {"id": 1540757891, "is_bot": true, "first_name": "Coffee Talk", "username": "coffee_talk_bot"}, "chat": {"id": 136563129, "first_name": "Alexey", "last_name": "Poloz", "username": "kosyachniy", "type": "private"}, "date": 1611942216, "text": "Хочешь поработать с партнёром в ближайшие дни?", "reply_markup": {"inline_keyboard": [[{"text": "Да", "callback_data": "y"}, {"text": "Нет", "callback_data": "n"}]]}}, "chat_instance": "-2955349629926715065", "data": "y"}
+# {"id": "586534174085442072", "from": {"id": 136563129, "is_bot": false, "first_name": "Alexey", "last_name": "Poloz", "username": "kosyachniy", "language_code": "ru"}, "message": {"message_id": 41, "from": {"id": 1540757891, "is_bot": true, "first_name": "Coffee Talk", "username": "coffee_talk_bot"}, "chat": {"id": 136563129, "first_name": "Alexey", "last_name": "Poloz", "username": "kosyachniy", "type": "private"}, "date": 1611942216, "text": "Хочешь поработать на этой неделе? ☕️", "reply_markup": {"inline_keyboard": [[{"text": "Да", "callback_data": "y"}, {"text": "Нет", "callback_data": "n"}]]}}, "chat_instance": "-2955349629926715065", "data": "y"}
 
 ### Yes
 @dp.callback_query_handler(lambda call: call.data == 'y')
@@ -291,7 +295,7 @@ async def handler_updated(call):
 
 	await send(
 		call.from_user.id,
-		'Отлично! Хочешь поработать с партнёром в ближайшие дни?',
+		'Отлично! Хочешь поработать на этой неделе? ☕️',
 		[[
 			{'name': 'Да', 'type': 'callback', 'data': 'y'},
 			{'name': 'Нет', 'type': 'callback', 'data': 'n'},
@@ -311,7 +315,7 @@ async def handler_start(call):
 	await send(
 		call.from_user.id,
 		'Ура! 🎗\n\nТеперь ты с нами!\nКраткая инструкция:\n\n1) По понедельникам и четвергам я буду спрашивать, хочешь ли ты поработать с кем-то в ближайшие 3 дня. Если да - я буду присылать тебе пару сразу, как только она найдётся :)\n\nЧтобы договориться о звонке и выбрать время, напиши партнеру в Telegram.\n\n2) Я собираю пары по активности: чем быстрее твой ответ боту - тем активнее даётся партнёр.\n\n3) Если ты хочешь делать работу чаще 1 раза в 3-4 дня, нажимай кнопку «Нужен ещё один партнёр?»\n\n4) Если партнёр не отвечает, нажимай кнопку «Нужен ещё один партнёр?» и я подберу тебе нового\n\nПлодотворных работ!\n🌊',
-		['Статистика'] if call.from_user.id in ADMINS else None,
+		['Статистика', 'Отправить всем'] if call.from_user.id in ADMINS else None,
 	)
 
 	if not auth(call):
@@ -325,7 +329,7 @@ async def handler_start(call):
 
 	await send(
 		call.from_user.id,
-		'Итак, ты хочешь поработать с партнёром в ближайшие дни?',
+		'Хочешь поработать на этой неделе? ☕️',
 		[[
 			{'name': 'Да', 'type': 'callback', 'data': 'y'},
 			{'name': 'Нет', 'type': 'callback', 'data': 'n'},
@@ -344,6 +348,7 @@ async def handler_start(msg: aiogram.types.Message):
 	)
 
 ## Buttons
+### Stats
 @dp.message_handler(lambda msg: msg.text == 'Статистика')
 async def handler_text(msg: aiogram.types.Message):
 	if msg.from_user.id not in ADMINS:
@@ -367,7 +372,7 @@ async def handler_text(msg: aiogram.types.Message):
 		'Средняя оценка: {} ({} за месяц)\nВсего метчей: {} ({} за месяц)'.format(
 			rating_all, rating_month, match_all, match_month,
 		),
-		['Статистика'] if msg.from_user.id in ADMINS else None,
+		['Статистика', 'Отправить всем'] if msg.from_user.id in ADMINS else None,
 	)
 
 	# Advanced
@@ -422,10 +427,21 @@ async def handler_text(msg: aiogram.types.Message):
 		await send(
 			msg.from_user.id,
 			text.replace('_', '\\_'),
-			['Статистика'] if msg.from_user.id in ADMINS else None,
+			['Статистика', 'Отправить всем'] if msg.from_user.id in ADMINS else None,
 		)
 	except Exception as e:
 		print('ERROR `send` in `handler_text`', e)
+
+### Send to all
+@dp.message_handler(lambda msg: msg.text == 'Отправить всем')
+async def handler_text(msg: aiogram.types.Message):
+	if msg.from_user.id not in ADMINS:
+		await send(msg.from_user.id, 'У Вас нет доступа!')
+		return
+
+	global_message.add(msg.from_user.id)
+
+	await send(msg.from_user.id, 'Напишите сообщение, которое будет отправлено всем:')
 
 ## Main handler
 @dp.message_handler()
@@ -442,6 +458,20 @@ async def handler_text(msg: aiogram.types.Message):
 			True,
 		)
 		return
+
+	# Send to all
+
+	if msg.from_user.id in global_message:
+		global_message.remove(msg.from_user.id)
+
+		for user in db['users'].find({'login': {'$exists': True}}, {'_id': False, 'id': True}):
+			if await check_entry(CHAT, user['id']):
+				await send(user['id'], msg.text, parse=False)
+
+		await send(msg.from_user.id, 'Отправлено всем!')
+		return
+
+	# Send feedback
 
 	await send(msg.from_user.id, 'Передал обратную связь!')
 
@@ -471,7 +501,7 @@ async def background_process():
 
 			await send(
 				user['id'],
-				'Итак, ты хочешь поработать с партнёром в ближайшие дни?',
+				'Хочешь поработать на этой неделе? ☕️',
 				[[
 					{'name': 'Да', 'type': 'callback', 'data': 'y'},
 					{'name': 'Нет', 'type': 'callback', 'data': 'n'},
