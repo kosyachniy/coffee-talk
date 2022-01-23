@@ -80,26 +80,30 @@ def keyboard(rows, inline=False):
 
 ## Send message
 async def send(user, text='', buttons=None, inline=False, image=None, preview=False, parse=True):
-	try:
-		if not image:
-			return await bot.send_message(
-				user,
-				text,
-				reply_markup=keyboard(buttons, inline),
-				parse_mode='Markdown' if parse else None,
-				disable_web_page_preview=not preview,
-			)
+    while text:
+        text_cur = text[:4096]
+        text = text[4096:]
 
-		else:
-			return await bot.send_photo(
-				user,
-				image,
-				text,
-				reply_markup=keyboard(buttons, inline),
-				parse_mode='Markdown' if parse else None,
-			)
-	except:
-		pass
+        try:
+            if not image:
+                await bot.send_message(
+                    user,
+                    text_cur,
+                    reply_markup=keyboard(buttons, inline),
+                    parse_mode='Markdown' if parse else None,
+                    disable_web_page_preview=not preview,
+                )
+
+            else:
+                await bot.send_photo(
+                    user,
+                    image,
+                    text_cur,
+                    reply_markup=keyboard(buttons, inline),
+                    parse_mode='Markdown' if parse else None,
+                )
+        except Exception as e:
+            print('ERROR `send` in `handler_text`', e)
 
 ## Get current week day
 def get_wday():
@@ -351,6 +355,8 @@ async def handler_start(msg: aiogram.types.Message):
 ### Stats
 @dp.message_handler(lambda msg: msg.text == 'Статистика')
 async def handler_text(msg: aiogram.types.Message):
+	print(ADMINS, msg.from_user.id)
+
 	if msg.from_user.id not in ADMINS:
 		await send(msg.from_user.id, 'У Вас нет доступа!')
 		return
@@ -423,14 +429,11 @@ async def handler_text(msg: aiogram.types.Message):
 
 		text += '\n\n'
 
-	try:
-		await send(
-			msg.from_user.id,
-			text.replace('_', '\\_'),
-			['Статистика', 'Отправить всем'] if msg.from_user.id in ADMINS else None,
-		)
-	except Exception as e:
-		print('ERROR `send` in `handler_text`', e)
+	await send(
+		msg.from_user.id,
+		text.replace('_', '\\_'),
+		['Статистика', 'Отправить всем'] if msg.from_user.id in ADMINS else None,
+	)
 
 ### Send to all
 @dp.message_handler(lambda msg: msg.text == 'Отправить всем')
